@@ -223,6 +223,7 @@ resources:
           Statement:
           - Action:
             - "s3:List*"
+            - "s3:Get*"
             Effect: "Allow"
             Resource: 
             - "arn:aws:s3:::*"
@@ -291,8 +292,10 @@ resources:
               User=ubuntu
               Restart=always
               RestartSec=3
-              Environment="PATH=/opt/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
-              ExecStart=/etc/${self:service}/ecrlogin.sh
+              Environment="PATH=/opt/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin" 
+              ExecStartPre=-/usr/bin/aws s3 cp s3://bytefirm-dot-xyz/artifacts/dist /etc/${self:service}/www
+              ExecStartPre=-/usr/bin/aws s3 cp s3://bytefirm-dot-xyz/${self:provider.stage}/dist /etc/${self:service}/www
+              ExecStart=
               [Install]
               WantedBy=default.target
               EOF

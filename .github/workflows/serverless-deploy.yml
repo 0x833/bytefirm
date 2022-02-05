@@ -1,0 +1,72 @@
+name: Deploy branch
+
+env:
+  CARGO_TERM_COLOR: always
+
+on: [ push ]
+jobs:
+  deploy:
+    name: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      matrix:
+        node-version: [14.x]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set output
+      id: vars
+      run: "echo ::set-output name=short_ref::${GITHUB_REF#refs/*/}"
+    - name: Check output
+      run: "echo operating on branch: ${{ steps.vars.outputs.short_ref }}"
+    - name: install toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        target: wasm32-unknown-unknown
+        override: true
+        profile: minimal
+    - name: Install trunk
+      uses: jetli/trunk-action@v0.1.0
+      with:
+        version: 'latest'
+    - name: Build
+      run: trunk build
+    - name: Run tests
+      run: cargo test --verbose
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        role-to-assume: ${{ secrets.deploy_aws_role_arn }}
+        aws-region: "us-west-2"
+    - name: Deploy
+      uses: reggionick/s3-deploy@v3
+      with:
+        folder: dist
+        bucket: ${{ secrets.deploy_aws_bucket }}
+        bucket-region: "us-west-2"
+        dist-id: ${{ secrets.deploy_aws_cloudfront_distribution_id }}
+        delete-removed: true
+        no-cache: true
+        private: true
+        #- name: Use Node.js ${{ matrix.node-version }}
+        #  uses: actions/setup-node@v1
+        #  with:
+        #    node-version: ${{ matrix.node-version }}
+        #- run: npm install
+        #- name: Configure AWS Credentials
+        #  uses: aws-actions/configure-aws-credentials@v1
+        #  with:
+        #    role-to-assume: arn:aws:iam::659842545213:role/deploy-bytefirm-vital-flea
+        #    aws-region: us-west-2
+        #    aws-secret-access-key: ${{ secrets.deploy_aws_secret_access_key }}
+        #    aws-access-key-id: ${{ secrets.deploy_aws_access_key_id }}
+        #    role-skip-session-tagging: true
+        #    role-duration-seconds: 3600
+        #    role-session-name: ServerlessDeployment
+        #- name: serverless deploy
+        #  uses: serverless/github-action@master
+        #  with:
+        #    args: deploy --stage ${{ steps.vars.outputs.short_ref }}

@@ -1,0 +1,321 @@
+service: bytefirmdotxyz
+
+# You can pin your service to only deploy with a specific Serverless version
+# Check out our docs for more details
+frameworkVersion: '2'
+
+provider:
+  name: aws
+  runtime: provided
+  lambdaHashingVersion: 20201221
+  stage: ${opt:stage, "nonprod"}
+  region: ${env:AWS_REGION, ${file(./environments/config.${self:provider.stage}.json):region}}
+  # you can define service wide environment variables here
+  environment:
+    variable1: ${file(./environments/config.${self:provider.stage}.json):variable1}
+
+# you can add statements to the Lambda function's IAM Role here
+#  iamRoleStatements:
+#    - Effect: "Allow"
+#      Action:
+#        - "s3:ListBucket"
+#      Resource: { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "ServerlessDeploymentBucket" } ] ]  }
+#    - Effect: "Allow"
+#      Action:
+#        - "s3:PutObject"
+#      Resource:
+#        Fn::Join:
+#          - ""
+#          - - "arn:aws:s3:::"
+#            - "Ref" : "ServerlessDeploymentBucket"
+#            - "/*"
+
+
+# you can add packaging information here
+#package:
+#  patterns:
+#    - '!exclude-me.py'
+#    - '!exclude-me-dir/**'
+#    - include-me.py
+#    - include-me-dir/**
+custom:
+  config:
+    prod:
+      vpc: vpc-643ade00
+    nonprod:
+      vpc: vpc-643ade00  
+
+# you can add CloudFormation resource templates here
+resources:
+  Conditions:
+    IsDev: !Not
+    - !Equals
+      - "${self:provider.stage}"
+      - "main"
+  Resources:
+    ApplicationSecurityGroup:
+      Type: "AWS::EC2::SecurityGroup"
+      Properties:
+        GroupName: "${self:service}-${self:provider.stage}"
+        GroupDescription: "Runtime Security Group"
+        Tags:
+        - Key: "Application"
+          Value: "${self:service}"
+        - Key: "Stage"
+          Value: "${self:provider.stage}" 
+    TCPIngressRule:
+      Type: "AWS::EC2::SecurityGroupIngress"
+      Properties:
+        FromPort: 443
+        ToPort: 443
+        IpProtocol: tcp
+        Description: "Allow HTTPS over 443"
+        SourceSecurityGroupId: !Ref ApplicationSecurityGroup
+    SSHIngressRule:
+      Condition: IsDev
+      Type: "AWS::EC2::SecurityGroupIngress"
+      Properties:
+        FromPort: 443
+        ToPort: 443
+        IpProtocol: tcp
+        Description: "Allow HTTPS over 443"
+        SourceSecurityGroupId: !Ref ApplicationSecurityGroup
+    DevSecurityGroup:
+      Condition: IsDev
+      Type: "AWS::EC2::SecurityGroup"
+      Properties:
+        GroupName: "${self:service}-${self:provider.stage}-dev"
+        GroupDescription: "Runtime Security Group"
+        SecurityGroupIngress:
+        - FromPort: 22
+          ToPort: 22
+          IpProtocol: tcp
+          Description: "Allow SSH over 22"
+        Tags:
+        - Key: "Application"
+          Value: "${self:service}"
+        - Key: "Stage"
+          Value: "${self:provider.stage}" 
+    Alb:
+      Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+      Properties: 
+        Name: "${self:service}-${self:provider.stage}"
+        Type: application
+        Scheme: internet-facing
+        #LoadBalancerAttributes: 
+        #  - LoadBalancerAttribute
+        SecurityGroups: 
+          - !GetAtt ProdSecurityGroup.GroupId
+        Subnets:
+        - "subnet-279a7343"
+        - "subnet-2897cf71"
+        Tags: 
+          - Key: "Application"
+            Value: "${self:service}"
+          - Key: "Stage"
+            Value: "${self:provider.stage}"
+          - Key: "test"
+            Value: "value"
+    Listener:
+      Type: "AWS::ElasticLoadBalancingV2::Listener"
+      Properties:
+        DefaultActions:
+        - Type: "fixed-response"
+          FixedResponseConfig:
+            StatusCode: "404"
+            ContentType: "application/json"
+            MessageBody: "{ \"Message\": \"Not Found\" }"
+        LoadBalancerArn: !Ref Alb
+        Port: 443
+        Protocol: HTTPS
+        Certificates:
+        - CertificateArn: "arn:aws:acm:us-west-2:659842545213:certificate/aa16eb53-b61d-4e38-bc89-ae14c07ad2aa"
+    ListenerRule1:
+      Type: "AWS::ElasticLoadBalancingV2::ListenerRule"
+      Properties:
+        Actions:
+          - Type: forward
+            ForwardConfig:
+              TargetGroups: 
+              - TargetGroupArn: !Ref TargetGroup
+                Weight: 1
+        Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+            - "/*"
+        ListenerArn: !Ref Listener
+        Priority: 1
+    TargetGroup:
+      Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+      Properties:
+        HealthCheckEnabled: true
+        HealthCheckIntervalSeconds: 30
+        HealthCheckPort: 443
+        HealthCheckPath: /api/v1/health
+        HealthCheckProtocol: HTTPS
+        HealthCheckTimeoutSeconds: 10
+        HealthyThresholdCount: 3
+        Matcher:
+          HttpCode: "200"
+        Port: 443
+        Protocol: HTTPS
+        Tags: 
+          - Key: "Application"
+            Value: "${self:service}"
+          - Key: "Stage"
+            Value: "${self:provider.stage}"
+        TargetGroupAttributes:
+        - Key: "slow_start.duration_seconds"
+          Value: 300
+        UnhealthyThresholdCount: 2
+        VpcId: "${self:custom.config.prod.vpc}"
+
+    ServiceASG:
+      Type: "AWS::AutoScaling::AutoScalingGroup"
+      DependsOn: LaunchTemplate
+      Properties: 
+        AutoScalingGroupName: "${self:service}-${self:provider.stage}"
+        AvailabilityZones: 
+          - "us-west-2a"
+          - "us-west-2b"
+        DesiredCapacity: 1
+        LaunchTemplate: 
+          LaunchTemplateId: !Ref LaunchTemplate
+          Version: !GetAtt LaunchTemplate.LatestVersionNumber
+        MaxInstanceLifetime: 86400
+        MaxSize: 3
+        MinSize: 1
+        TargetGroupARNs: 
+          - !Ref TargetGroup
+
+    InstanceProfile:
+      Type: "AWS::IAM::InstanceProfile"
+      DependsOn: InstanceRole
+      Properties:
+        InstanceProfileName: "${self:service}-${self:provider.stage}"
+        Path: "/"
+        Roles:
+        - !Ref InstanceRole
+    InstanceRole:
+      Type: "AWS::IAM::Role"
+      Properties:
+        RoleName: "${self:service}-${self:provider.stage}"
+        Description: "Test Description"
+        Path: "/"
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - ec2.amazonaws.com
+              Action:
+                - 'sts:AssumeRole'
+    InstancePolicy:
+      Type: "AWS::IAM::Policy"
+      Properties:
+        PolicyName: "${self:service}-${self:provider.stage}"
+        Roles:
+        - !Ref InstanceRole
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Action:
+            - "s3:List*"
+            - "s3:Get*"
+            Effect: "Allow"
+            Resource: 
+            - "arn:aws:s3:::*"
+    LaunchTemplate:
+      Type: "AWS::EC2::LaunchTemplate"
+      Properties: 
+        LaunchTemplateName: "${self:service}-${self:provider.stage}"
+        LaunchTemplateData: 
+          ImageId: ami-03d5c68bab01f3496 # Ubuntu 20.04 LTS
+          SecurityGroups:
+          - !Ref ApplicationSecurityGroup 
+          IamInstanceProfile: 
+            Arn: !GetAtt InstanceProfile.Arn
+          BlockDeviceMappings:
+            #          - Ebs:
+            #  VolumeSize: 256
+            #  Encrypted: true
+            #DeviceName: /dev/sdf
+          - Ebs:
+              VolumeSize: 64
+              Encrypted: true
+            DeviceName: /dev/sda1
+          CreditSpecification:
+            CpuCredits: Unlimited
+          InstanceType: t2.micro
+          UserData: 
+            Fn::Base64: |
+              #!/bin/bash -xe
+              exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+              apt update -y
+              apt install docker
+              systemctl start docker
+              groupadd ${self:service}
+              usermod -a -G ${self:service}
+              usermod -a -G docker ubuntu
+              mkdir /etc/${self:service}
+              mkdir /var/${self:service}/data
+              #mkfs -t ext4 /dev/sdf
+              #mount /dev/sdf /var/${self:service}/data
+              #echo '/dev/sdf /var/$self:service}/data ext4 defaults,nofail 0 2' >> /etc/fstab
+              cat >> /etc/${self:service}/ecrlogin.sh <<EOF
+              #!/bin/bash
+              $(/usr/bin/aws ecr get-login --no-include-email --region #{AWS::Region})
+              EOF
+              chmod +x /etc/${self:service}/ecrlogin.sh
+              cat >> /etc/systemd/system/ecrlogin.service <<EOF
+              [Unit]
+              Description=Login to ECR
+              Wants=network-online.target
+              After=network.target network-online.target
+              [Service]
+              Type=oneshot
+              User=ubuntu
+              ExecStart=/etc/${self:service}/ecrlogin.sh
+              [Install]
+              WantedBy=default.target
+              EOF
+              cat >> /etc/systemd/system/${self:service}.service <<EOF
+              [Unit]
+              Description=${self:service}
+              After=docker.service ecrlogin.service
+              Requires=docker.service ecrlogin.service
+              StartLimitIntervalSec=0
+              [Service]
+              Type=simple
+              User=ubuntu
+              Restart=always
+              RestartSec=3
+              Environment="PATH=/opt/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin" 
+              ExecStartPre=-/usr/bin/aws s3 cp s3://bytefirm-dot-xyz/artifacts/dist /etc/${self:service}/www
+              ExecStartPre=-/usr/bin/aws s3 cp s3://bytefirm-dot-xyz/${self:provider.stage}/dist /etc/${self:service}/www
+              ExecStart=
+              [Install]
+              WantedBy=default.target
+              EOF
+              mkdir -p /etc/${self:service}/config /var/${self:service}/data
+              chown -R ubuntu:${self:service} /etc/systemd/system/${self:service}.service /etc/${self:service} /var/${self:service}
+              systemctl enable --now ${self:service}.service
+          TagSpecifications: 
+            - ResourceType: "instance"
+              Tags:
+              - Key: "Application"
+                Value: "${self:service}"
+              - Key: "Stage"
+                Value: "${self:provider.stage}"
+            - ResourceType: "volume"
+              Tags:
+              - Key: "Application"
+                Value: "${self:service}"
+              - Key: "Stage"
+                Value: "${self:provider.stage}"
+  Outputs:
+     AlbURL:
+       Description: "DNS Name for Application Load Balancer"
+       Value: !GetAtt Alb.DNSName

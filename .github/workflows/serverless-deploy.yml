@@ -33,15 +33,21 @@ jobs:
       run: trunk build
     - name: Run tests
       run: cargo test --verbose
-    - uses: shallwefootball/s3-upload-action@master
-      name: Upload S3
-      id: S3
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
       with:
-        aws_key_id: ${{ secrets.deploy_aws_access_key_id }}
-        aws_secret_access_key: ${{ secrets.deploy_aws_secret_access_key }}
-        aws_bucket: ${{ secrets.deploy_aws_bucket }}
-        source_dir: 'dist'
-        destination_dir: "/"
+        role-to-assume: ${{ secrets.deploy_aws_role_arn }}
+        aws-region: "us-west-2"
+    - name: Deploy
+      uses: reggionick/s3-deploy@v3
+      with:
+        folder: dist
+        bucket: ${{ secrets.deploy_aws_bucket }}
+        bucket-region: "us-west-2"
+        dist-id: ${{ secrets.deploy_aws_cloudfront_distribution_id }}
+        delete-removed: true
+        no-cache: true
+        private: true
         #- name: Use Node.js ${{ matrix.node-version }}
         #  uses: actions/setup-node@v1
         #  with:

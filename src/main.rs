@@ -92,6 +92,10 @@ impl App {
                             { "Home" }
                         </Link<Route>>
 
+                        <Link<Route> classes={classes!("navbar-item")} to={Route::Home}>
+                            { "Solutions" }
+                        </Link<Route>>
+
                         <div class="navbar-item has-dropdown is-hoverable">
                             <div class="navbar-link">
                                 { "More" }

@@ -73,7 +73,7 @@ impl App {
     fn view_nav(&self, link: &Scope<Self>) -> Html {
         let Self { navbar_active, .. } = *self;
 
-        let active_class = if !navbar_active { "is-active" } else { "" };
+        let active_class = if !navbar_active { "" } else { "is-active" };
 
         html! {
             <nav class="navbar is-primary" role="navigation" aria-label="main navigation">

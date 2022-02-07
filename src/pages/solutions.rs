@@ -14,8 +14,7 @@ impl Component for Solutions {
             <div class="tile is-ancestor is-vertical">
                 <div class="tile is-child hero">
                     <div class="hero-body container pb-0">
-                        <h1 class="title is-1">{ "Products" }</h1>
-                        <h2 class="subtitle">{ "Our solutions" }</h2>
+                        <h1 class="title is-1">{ "Solutions" }</h1>
                     </div>
                 </div>
 

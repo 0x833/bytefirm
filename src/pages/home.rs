@@ -21,7 +21,7 @@ impl Component for Home {
 
                 <div class="tile is-child">
                     <figure class="image is-3by1">
-                        <img alt="A random image for the input term 'yew'." src="https://source.unsplash.com/random/1200x400/?yew" />
+                        <img alt="A random image for the input term 'yew'." src="public/landing-image.jpg" />
                     </figure>
                 </div>
 
@@ -55,18 +55,17 @@ impl Home {
                 </div>
 
                 <div class="tile is-parent">
-                    <div class="tile is-child box">
-                        <p class="title">{ "Who are we?" }</p>
+                    <div class="tile is-parent">
+                        <div class="tile is-child box">
+                            <p class="title">{ "Who are we?" }</p>
 
-                        <div class="content">
-                            { "We're a small team of just 2" }
-                            <sup>{ 64 }</sup>
-                            { " members working tirelessly to bring you the low-effort yew content we all desperately crave." }
-                            <br />
-                            {r#"
-                                We put a ton of effort into fact-checking our posts.
-                                Some say they read like a Wikipedia article - what a compliment!
-                            "#}
+                            <div class="content">
+                                { "We're a small team working tirelessly to bring you the software solutions you need most." }
+                                <br />
+                                {r#"
+                                    Please check out our blog posts for what we are up to!
+                                "#}
+                            </div>
                         </div>
                     </div>
                 </div>

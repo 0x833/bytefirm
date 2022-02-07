@@ -34,6 +34,8 @@ jobs:
         version: 'latest'
     - name: Build
       run: trunk build
+    - name: move public to dist
+      run: mv public dist/
     - name: Run tests
       run: cargo test --verbose
     - name: Configure AWS Credentials

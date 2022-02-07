@@ -5,7 +5,8 @@ mod pages;
 
 use pages::{
     home::Home, 
-    page_not_found::PageNotFound
+    page_not_found::PageNotFound,
+    solutions::Solutions
 };
 use yew::html::Scope;
 
@@ -13,6 +14,8 @@ use yew::html::Scope;
 pub enum Route {
     #[at("/")]
     Home,
+    #[at("/solutions")]
+    Solutions,
     #[not_found]
     #[at("/404")]
     NotFound,
@@ -92,7 +95,7 @@ impl App {
                             { "Home" }
                         </Link<Route>>
 
-                        <Link<Route> classes={classes!("navbar-item")} to={Route::Home}>
+                        <Link<Route> classes={classes!("navbar-item")} to={Route::Solutions}>
                             { "Solutions" }
                         </Link<Route>>
 
@@ -112,6 +115,9 @@ fn switch(routes: &Route) -> Html {
     match routes.clone() {
         Route::Home => {
             html! { <Home /> }
+        }
+        Route::Solutions => {
+            html! { <Solutions /> }
         }
         Route::NotFound => {
             html! { <PageNotFound /> }

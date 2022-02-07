@@ -21,7 +21,7 @@ impl Component for Home {
 
                 <div class="tile is-child">
                     <figure class="image is-3by1">
-                        <img alt="A random image for the input term 'yew'." src="public/landing-image.jpg" />
+                        <img alt="software solutions image" src="public/landing-image.jpg" />
                     </figure>
                 </div>
 

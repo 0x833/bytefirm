@@ -64,6 +64,9 @@ impl Component for App {
                         { " and images from " }
                         <a href="https://unsplash.com">{ "Unsplash" }</a>
                     </div>
+                    <div class="content has-text-centered">
+                        { "Copyright Bytefirm LLC 2022" }
+                    </div>
                 </footer>
             </BrowserRouter>
         }
